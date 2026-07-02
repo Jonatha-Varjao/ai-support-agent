@@ -1,0 +1,94 @@
+services:
+  db:
+    image: pgvector/pgvector:pg18
+    container_name: aiagent_db
+    environment:
+      POSTGRES_USER: aiagent
+      POSTGRES_PASSWORD: aiagent
+      POSTGRES_DB: aiagent
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aiagent"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+    networks:
+      - app_network
+
+  redis:
+    image: redis/redis-stack-server:latest
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+    networks:
+      - app_network
+
+  mcp:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.mcp
+    environment:
+      PYTHONUNBUFFERED: "1"
+    ports:
+      - "8001:8000"
+    networks:
+      - app_network
+
+  api:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.api
+    env_file: ../.env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://aiagent:aiagent@db:5432/aiagent
+      REDIS_URL: redis://redis:6379/0
+      LLM_PROVIDER: gemini
+      MCP_URL: http://mcp:8000/mcp
+      ENV: dev
+      ADMIN_EMAIL: admin@admin.com
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - app_network
+
+  web:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.web
+    ports:
+      - "5173:5173"
+    networks:
+      - app_network
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin_container
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "8080:80"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - app_network
+
+volumes:
+  pgdata:
+
+networks:
+  app_network:
+    driver: bridge

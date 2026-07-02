@@ -1,0 +1,15 @@
+FROM python:3.14-slim
+
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends gcc && rm -rf /var/lib/apt/lists/*
+RUN pip install uv
+
+COPY pyproject.toml uv.lock* ./
+COPY services/mcp/pyproject.toml services/mcp/
+
+RUN uv sync --frozen --directory services/mcp || uv sync --directory services/mcp
+RUN uv run --directory services/mcp playwright install --with-deps chromium
+
+COPY services/mcp services/mcp
+
+CMD ["uv", "run", "--directory", "services/mcp", "uvicorn", "src.mcp_server.server:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
