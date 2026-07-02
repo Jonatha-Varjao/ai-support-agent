@@ -1,0 +1,43 @@
+[project]
+name = "api"
+version = "0.1.0"
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi>=0.138",
+    "uvicorn[standard]>=0.49",
+    "sqlalchemy[asyncio]>=2",
+    "asyncpg>=0.31",
+    "pgvector>=0.2.5,<0.4",
+    "alembic>=1.18",
+    "pyjwt>=2",
+    "pydantic-settings>=2",
+    "pydantic[email]>=2",
+    "slowapi>=0.1",
+    "google-genai>=2",
+    "fastmcp>=3.4",
+    "anyio>=4",
+    "redis>=5",
+    "numpy>=2",
+    "langchain>=0.3",
+    "langchain-core>=0.3",
+    "langchain-community>=0.3",
+    "langchain-google-genai>=2",
+    "langchain-postgres>=0.0.6",
+    "langchain-redis>=0.1",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=9",
+    "httpx>=0.28",
+    "pytest-asyncio>=1",
+    "testcontainers[postgres,redis]>=4",
+]
+dev = ["vulture>=2"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 120
+target-version = "py314"
