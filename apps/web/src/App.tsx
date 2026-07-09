@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useThemeStore } from "./features/theme/store";
 import { useAuthStore } from "./features/auth/store";
 import LoginPage from "./pages/LoginPage";
@@ -12,11 +13,15 @@ import AdminLayout from "./components/AdminLayout";
 import KBPage from "./pages/admin/KBPage";
 import UnansweredPage from "./pages/admin/UnansweredPage";
 import HandoffsPage from "./pages/admin/HandoffsPage";
+import AdminChatPage from "./pages/admin/AdminChatPage";
+import AdminThreadsPage from "./pages/admin/AdminThreadsPage";
+import Spinner from "./components/Spinner";
 
 export default function App() {
   const theme = useThemeStore((s) => s.theme);
   const authStatus = useAuthStore((s) => s.authStatus);
   const hydrate = useAuthStore((s) => s.hydrate);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
@@ -28,16 +33,17 @@ export default function App() {
 
   useEffect(() => {
     const onExpired = () => {
+      queryClient.clear();
       useAuthStore.getState().logout();
     };
     window.addEventListener("auth:expired", onExpired);
     return () => window.removeEventListener("auth:expired", onExpired);
-  }, []);
+  }, [queryClient]);
 
   if (authStatus !== "ready") {
     return (
       <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600" />
+        <Spinner />
       </div>
     );
   }
@@ -57,6 +63,8 @@ export default function App() {
             <Route path="/admin/kb" element={<KBPage />} />
             <Route path="/admin/unanswered" element={<UnansweredPage />} />
             <Route path="/admin/handoffs" element={<HandoffsPage />} />
+            <Route path="/admin/chat/:threadId" element={<AdminChatPage />} />
+            <Route path="/admin/threads" element={<AdminThreadsPage />} />
           </Route>
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
