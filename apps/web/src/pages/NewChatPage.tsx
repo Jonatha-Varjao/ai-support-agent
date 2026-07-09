@@ -1,42 +1,20 @@
-import { useState, useRef, useCallback } from "react";
+import { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useChatStore } from "../features/chat/store";
-import { streamChat } from "../api/chat";
+import { useStreamChat } from "../hooks/useStreamChat";
+import MessageBubble from "../components/MessageBubble";
+import TypingIndicator from "../components/TypingIndicator";
 import ChatInput from "../components/ChatInput";
 
 export default function NewChatPage() {
-  const [streaming, setStreaming] = useState(false);
-  const { startStream, appendStream, endStream, failStream, clearInFlight } = useChatStore();
-  const abortRef = useRef<AbortController | null>(null);
+  const { inFlight } = useChatStore();
   const navigate = useNavigate();
+  const onDone = useCallback((tid: string) => navigate(`/c/${tid}`, { replace: true }), [navigate]);
+  const { send, streaming } = useStreamChat({ onDone });
 
   const handleSend = useCallback(async (text: string) => {
-    const tempId = crypto.randomUUID();
-    startStream(tempId, "");
-    setStreaming(true);
-
-    const ctrl = new AbortController();
-    abortRef.current = ctrl;
-
-    try {
-      for await (const ev of streamChat({ content: text, signal: ctrl.signal })) {
-        if (ev.type === "token") {
-          appendStream(ev.content);
-        }
-        if (ev.type === "done") {
-          endStream();
-          if (ev.thread_id) navigate(`/c/${ev.thread_id}`, { replace: true });
-        }
-      }
-    } catch (err: unknown) {
-      if (err instanceof Error && err.name !== "AbortError") {
-        failStream("Erro ao gerar resposta");
-      }
-      clearInFlight();
-    } finally {
-      setStreaming(false);
-    }
-  }, [startStream, appendStream, endStream, failStream, clearInFlight, navigate]);
+    send(text);
+  }, [send]);
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center">
@@ -48,6 +26,16 @@ export default function NewChatPage() {
           Faça uma pergunta sobre a Mission
         </p>
       </div>
+      {inFlight && (
+        <div className="w-full max-w-3xl mb-4">
+          <MessageBubble role="user" content={inFlight.userContent} timestamp={inFlight.createdAt} />
+          {inFlight.text ? (
+            <MessageBubble role="assistant" content={inFlight.text} />
+          ) : (
+            <TypingIndicator />
+          )}
+        </div>
+      )}
       <div className="w-full max-w-3xl">
         <ChatInput onSend={handleSend} disabled={streaming} />
       </div>
