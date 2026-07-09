@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated
+from datetime import timedelta
 
 from fastapi import APIRouter, Depends, Response
 from pydantic import BaseModel, EmailStr
@@ -11,6 +11,7 @@ from .config import (
     create_access_token,
     get_current_user,
     settings,
+    CurrentUser,
 )
 from .db import get_session
 from .models import User
@@ -40,6 +41,7 @@ async def login(
     response: Response,
     session: AsyncSession = Depends(get_session),
 ):
+    """Demo-only auth flow. In production, add password or OAuth verification."""
     email = request.email
     role = "admin" if email == settings.admin_email else "user"
 
@@ -60,7 +62,7 @@ async def login(
     response.set_cookie(
         key=settings.cookie_name,
         value=token,
-        max_age=settings.jwt_ttl_hours * 3600,
+        max_age=int(timedelta(hours=settings.jwt_ttl_hours).total_seconds()),
         httponly=True,
         secure=settings.cookie_secure,
         samesite=settings.cookie_samesite,
@@ -78,9 +80,9 @@ async def logout(response: Response):
 
 
 @router.get("/me", response_model=UserOut)
-async def me(current_user: Annotated[dict, Depends(get_current_user)]):
+async def me(user: CurrentUser = Depends(get_current_user)):
     return UserOut(
-        id=current_user.get("id", "unknown"),
-        email=current_user["sub"],
-        role=current_user["role"],
+        id=str(user.id),
+        email=user.email,
+        role=user.role,
     )
