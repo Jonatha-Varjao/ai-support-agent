@@ -2,6 +2,9 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useUnansweredList, useUpdateUnanswered } from "../../hooks/useAdmin";
 import { ADMIN_PAGE_SIZE } from "../../api/admin";
+import Skeleton from "../../components/Skeleton";
+import Pagination from "../../components/Pagination";
+import EmptyState from "../../components/EmptyState";
 
 export default function UnansweredPage() {
   const [resolvedFilter, setResolvedFilter] = useState<string>("false");
@@ -34,19 +37,15 @@ export default function UnansweredPage() {
       </div>
 
       {isLoading ? (
-        <div className="space-y-2">
-          {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="h-10 animate-pulse rounded-lg bg-gray-200 dark:bg-gray-700" />
-          ))}
-        </div>
+        <Skeleton />
       ) : items.length === 0 ? (
-        <div className="py-12 text-center text-sm text-gray-500 dark:text-gray-400">
-          {resolvedFilter === "false"
+        <EmptyState message={
+          resolvedFilter === "false"
             ? "Nenhuma pergunta não respondida."
             : resolvedFilter === "true"
               ? "Nenhuma pergunta resolvida."
-              : "Nenhuma pergunta encontrada."}
-        </div>
+              : "Nenhuma pergunta encontrada."
+        } />
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
@@ -82,15 +81,9 @@ export default function UnansweredPage() {
                     </span>
                   </td>
                   <td className="py-3 pr-4">
-                    {item.thread_title ? (
-                      <Link to={`/c/${item.thread_id}`} className="text-blue-600 hover:underline dark:text-blue-400">
-                        {item.thread_title}
-                      </Link>
-                    ) : (
-                      <Link to={`/c/${item.thread_id}`} className="text-blue-600 hover:underline dark:text-blue-400">
-                        Ver conversa
-                      </Link>
-                    )}
+                    <Link to={`/admin/chat/${item.thread_id}`} className="text-blue-600 hover:underline dark:text-blue-400">
+                      {item.thread_title || "Ver conversa"}
+                    </Link>
                   </td>
                   <td className="py-3 pr-4 text-gray-500 dark:text-gray-400">
                     {new Date(item.created_at).toLocaleDateString("pt-BR")}
@@ -111,15 +104,7 @@ export default function UnansweredPage() {
             </tbody>
           </table>
 
-          <div className="mt-4 flex justify-center gap-2">
-            <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="rounded-lg border border-gray-300 px-3 py-1 text-sm disabled:opacity-40 dark:border-gray-600 dark:text-gray-300">
-              Anterior
-            </button>
-            <span className="px-2 py-1 text-sm text-gray-500">{page}</span>
-            <button disabled={items.length < ADMIN_PAGE_SIZE} onClick={() => setPage((p) => p + 1)} className="rounded-lg border border-gray-300 px-3 py-1 text-sm disabled:opacity-40 dark:border-gray-600 dark:text-gray-300">
-              Próximo
-            </button>
-          </div>
+          <Pagination page={page} itemCount={items.length} pageSize={ADMIN_PAGE_SIZE} total={data?.total} onPageChange={setPage} />
         </div>
       )}
     </div>
