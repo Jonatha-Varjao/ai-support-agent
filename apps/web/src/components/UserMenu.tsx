@@ -1,26 +1,41 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "../features/auth/store";
 import { logout as apiLogout } from "../api/auth";
 
 export default function UserMenu() {
   const { user, logout } = useAuthStore();
   const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
 
   const handleLogout = async () => {
     setOpen(false);
     try {
       await apiLogout();
     } catch {
-      // ignore — backend may not have this endpoint yet
+      // best effort — clear local state regardless
     }
+    queryClient.clear();
     logout();
     navigate("/login", { replace: true });
   };
 
   return (
-    <div className="relative">
+    <div className="relative" ref={menuRef}>
       <button
         onClick={() => setOpen(!open)}
         className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-400 hover:bg-gray-700 hover:text-gray-200"
