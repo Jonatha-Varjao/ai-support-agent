@@ -20,6 +20,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
   logout: () => set({ user: null }),
 
   hydrate: async () => {
+    if (useAuthStore.getState().authStatus !== "idle") return;
     set({ authStatus: "hydrating" });
     try {
       const user = await me();
