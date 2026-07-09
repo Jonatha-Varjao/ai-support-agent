@@ -4,6 +4,7 @@ const LINKS = [
   { to: "/admin/kb", label: "Base de conhecimento" },
   { to: "/admin/unanswered", label: "Não respondidas" },
   { to: "/admin/handoffs", label: "Handoffs" },
+  { to: "/admin/threads", label: "Conversas" },
 ];
 
 export default function AdminLayout() {
