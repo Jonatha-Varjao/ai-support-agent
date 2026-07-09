@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .models import KbEntry
@@ -15,11 +15,11 @@ async def reembed_entry(entry_id: uuid.UUID, session: AsyncSession) -> None:
     This is the single seam for future broker/queue evolution: swap this
     function body for a publish-to-queue call without touching callers.
     """
-    result = await session.execute(select(KbEntry).where(KbEntry.id == entry_id))
-    entry = result.scalar_one_or_none()
+    entry = await session.get(KbEntry, entry_id)
     if entry is None:
         return
     text = entry.content
     vec = await get_embeddings().aembed_query(text)
     entry.embedding = vec
+    entry.fts = func.to_tsvector("portuguese", entry.title + " " + entry.content)
     await session.commit()
