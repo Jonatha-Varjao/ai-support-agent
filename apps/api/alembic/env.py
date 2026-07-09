@@ -6,11 +6,14 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
+from src.app.config import settings
 from src.app.models import Base
 
 config = context.config
 if config.config_file_name is not None and not config.attributes.get("skip_logging", False):
     fileConfig(config.config_file_name)
+
+config.set_main_option("sqlalchemy.url", settings.database_url)
 
 target_metadata = Base.metadata
 
