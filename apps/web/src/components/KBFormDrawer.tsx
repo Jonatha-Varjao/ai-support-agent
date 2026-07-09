@@ -34,6 +34,15 @@ export default function KBFormDrawer({ open, onClose, onSave, initial, saving }:
     if (open) titleRef.current?.focus();
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [open, onClose]);
+
   if (!open) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -97,7 +106,7 @@ export default function KBFormDrawer({ open, onClose, onSave, initial, saving }:
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              maxLength={8000}
+              maxLength={5000}
               rows={14}
               placeholder="Texto da entrada..."
               className="flex-1 resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-500"
