@@ -3,6 +3,7 @@ import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useAuthStore } from "../features/auth/store";
 import { useThreads, useRenameThread, useDeleteThread } from "../hooks/useChatThreads";
 import UserMenu from "./UserMenu";
+import Skeleton from "./Skeleton";
 
 export default function Sidebar() {
   const { data: threads, isLoading } = useThreads();
@@ -55,14 +56,6 @@ export default function Sidebar() {
     if (e.key === "Escape") setEditingId(null);
   };
 
-  const skeleton = (
-    <nav className="flex-1 overflow-y-auto px-2">
-      {[0, 1, 2].map((i) => (
-        <div key={i} className="mb-1 h-9 animate-pulse rounded-lg bg-gray-200 dark:bg-gray-700" />
-      ))}
-    </nav>
-  );
-
   return (
     <aside className="flex h-screen w-64 flex-col border-r border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800">
       <div className="p-3">
@@ -92,7 +85,11 @@ export default function Sidebar() {
         </button>
       </div>
 
-      {isLoading ? skeleton : (
+      {isLoading ? (
+        <nav className="flex-1 overflow-y-auto px-2">
+          <Skeleton count={3} className="h-9 mb-1" />
+        </nav>
+      ) : (
         <nav className="flex-1 overflow-y-auto px-2">
           {threads?.map((t) => (
             <div key={t.id} className="group relative mb-1">
