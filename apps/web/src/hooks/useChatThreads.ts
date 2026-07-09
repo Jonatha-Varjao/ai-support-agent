@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { STALE_10S, STALE_30S } from "../lib/constants";
 import {
   listThreads,
   getMessages,
@@ -6,7 +7,6 @@ import {
   deleteThread,
   type ThreadListItem,
   type MessageItem,
-  type RenameRequest,
 } from "../api/chat";
 
 export function useThreads(enabled = true) {
@@ -14,7 +14,7 @@ export function useThreads(enabled = true) {
     queryKey: ["threads"],
     queryFn: listThreads,
     enabled,
-    staleTime: 30_000,
+    staleTime: STALE_30S,
   });
 }
 
@@ -23,14 +23,14 @@ export function useMessages(threadId: string | undefined, enabled = true) {
     queryKey: ["messages", threadId],
     queryFn: () => getMessages(threadId!),
     enabled: enabled && !!threadId,
-    staleTime: 10_000,
+    staleTime: STALE_10S,
   });
 }
 
 export function useRenameThread() {
   const qc = useQueryClient();
   return useMutation<{ id: string; title: string; updated_at: string }, Error, { id: string; title: string }>({
-    mutationFn: ({ id, title }) => renameThread(id, { title } as RenameRequest),
+    mutationFn: ({ id, title }) => renameThread(id, { title }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["threads"] });
     },
