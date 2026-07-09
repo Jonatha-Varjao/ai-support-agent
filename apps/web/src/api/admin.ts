@@ -1,4 +1,5 @@
-import { ApiError } from "./client";
+import { apiFetch } from "./client";
+import type { MessageItem } from "./chat";
 
 // ── Shared ──────────────────────────────────────────────────────────────────
 
@@ -48,47 +49,32 @@ export const KB_CATEGORY_LABELS: Record<KBCategory, string> = Object.fromEntries
 
 export const ADMIN_PAGE_SIZE = 50;
 
-async function jsonRes<T>(res: Response): Promise<T> {
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new ApiError(res.status, body.detail ?? res.statusText);
-  }
-  return res.json();
-}
-
 export function listKB(params: { category?: string; page?: number; size?: number } = {}) {
   const qs = new URLSearchParams();
   if (params.category) qs.set("category", params.category);
   if (params.page) qs.set("page", String(params.page));
   if (params.size) qs.set("size", String(params.size));
   const url = `/admin/kb${qs.toString() ? `?${qs}` : ""}`;
-  return fetch(url, { credentials: "include" }).then((r) => jsonRes<Page<KBListItem>>(r));
+  return apiFetch<Page<KBListItem>>(url);
 }
 
 export function createKB(body: KBCreateRequest) {
-  return fetch("/admin/kb", {
+  return apiFetch<KBListItem>("/admin/kb", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
-    credentials: "include",
-  }).then((r) => jsonRes<KBListItem>(r));
+  });
 }
 
 export function updateKB(id: string, body: KBUpdateRequest) {
-  return fetch(`/admin/kb/${encodeURIComponent(id)}`, {
+  return apiFetch<KBListItem>(`/admin/kb/${encodeURIComponent(id)}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
-    credentials: "include",
-  }).then((r) => jsonRes<KBListItem>(r));
+  });
 }
 
 export function deleteKB(id: string) {
-  return fetch(`/admin/kb/${encodeURIComponent(id)}`, {
+  return apiFetch<void>(`/admin/kb/${encodeURIComponent(id)}`, {
     method: "DELETE",
-    credentials: "include",
-  }).then((res) => {
-    if (!res.ok) throw new ApiError(res.status, `Failed to delete: ${res.statusText}`);
   });
 }
 
@@ -118,16 +104,14 @@ export function listUnanswered(
   if (params.page) qs.set("page", String(params.page));
   if (params.size) qs.set("size", String(params.size));
   const url = `/admin/unanswered${qs.toString() ? `?${qs}` : ""}`;
-  return fetch(url, { credentials: "include" }).then((r) => jsonRes<Page<UnansweredListItem>>(r));
+  return apiFetch<Page<UnansweredListItem>>(url);
 }
 
 export function updateUnanswered(id: string, body: { resolved?: boolean }) {
-  return fetch(`/admin/unanswered/${encodeURIComponent(id)}`, {
+  return apiFetch<UnansweredListItem>(`/admin/unanswered/${encodeURIComponent(id)}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
-    credentials: "include",
-  }).then((r) => jsonRes<UnansweredListItem>(r));
+  });
 }
 
 // ── Handoffs ────────────────────────────────────────────────────────────────
@@ -153,14 +137,37 @@ export function listHandoffs(params: { status?: string; page?: number; size?: nu
   if (params.page) qs.set("page", String(params.page));
   if (params.size) qs.set("size", String(params.size));
   const url = `/admin/handoffs${qs.toString() ? `?${qs}` : ""}`;
-  return fetch(url, { credentials: "include" }).then((r) => jsonRes<Page<HandoffListItem>>(r));
+  return apiFetch<Page<HandoffListItem>>(url);
 }
 
 export function updateHandoff(id: string, body: HandoffUpdateRequest) {
-  return fetch(`/admin/handoffs/${encodeURIComponent(id)}`, {
+  return apiFetch<HandoffListItem>(`/admin/handoffs/${encodeURIComponent(id)}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
-    credentials: "include",
-  }).then((r) => jsonRes<HandoffListItem>(r));
+  });
+}
+
+// ── Admin Threads ──────────────────────────────────────────────────────────
+
+export interface AdminThreadItem {
+  id: string;
+  title: string;
+  user_email: string;
+  updated_at: string;
+}
+
+export function listAllThreads(params: { user_id?: string; page?: number; size?: number } = {}) {
+  const qs = new URLSearchParams();
+  if (params.user_id) qs.set("user_id", params.user_id);
+  if (params.page) qs.set("page", String(params.page));
+  if (params.size) qs.set("size", String(params.size));
+  const url = `/admin/threads${qs.toString() ? `?${qs}` : ""}`;
+  return apiFetch<Page<AdminThreadItem>>(url);
+}
+
+export function getAdminMessages(threadId: string, limit?: number) {
+  const qs = new URLSearchParams();
+  if (limit) qs.set("limit", String(limit));
+  const url = `/admin/threads/${encodeURIComponent(threadId)}/messages${qs.toString() ? `?${qs}` : ""}`;
+  return apiFetch<MessageItem[]>(url);
 }
