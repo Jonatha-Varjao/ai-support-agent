@@ -1,4 +1,4 @@
-import { ApiError } from "./client";
+import { apiFetch, ApiError } from "./client";
 
 export interface ThreadListItem {
   id: string;
@@ -12,10 +12,6 @@ export interface MessageItem {
   role: "user" | "assistant" | "tool";
   content: string;
   created_at: string;
-}
-
-export interface RenameRequest {
-  title: string;
 }
 
 export type ChatEvent =
@@ -39,8 +35,10 @@ export async function* streamChat(opts: {
   });
 
   if (!res.ok) {
+    if (res.status === 401) {
+      window.dispatchEvent(new CustomEvent("auth:expired"));
+    }
     const body = await res.json().catch(() => ({ detail: res.statusText }));
-    console.log(res);
     throw new ApiError(res.status, body.detail ?? res.statusText);
   }
 
@@ -82,9 +80,7 @@ export async function* streamChat(opts: {
 }
 
 export async function listThreads(): Promise<ThreadListItem[]> {
-  const res = await fetch("/threads", { credentials: "include" });
-  if (!res.ok) throw new ApiError(res.status, (await res.json().catch(() => ({ detail: res.statusText }))).detail ?? res.statusText);
-  return res.json();
+  return apiFetch<ThreadListItem[]>("/threads");
 }
 
 export async function getMessages(
@@ -96,29 +92,21 @@ export async function getMessages(
   if (opts?.limit) params.set("limit", String(opts.limit));
   const qs = params.toString();
   const url = `/threads/${encodeURIComponent(threadId)}/messages${qs ? `?${qs}` : ""}`;
-  const res = await fetch(url, { credentials: "include" });
-  if (!res.ok) throw new ApiError(res.status, (await res.json().catch(() => ({ detail: res.statusText }))).detail ?? res.statusText);
-  return res.json();
+  return apiFetch<MessageItem[]>(url);
 }
 
 export async function renameThread(
   id: string,
-  body: RenameRequest,
+  body: { title: string },
 ): Promise<{ id: string; title: string; updated_at: string }> {
-  const res = await fetch(`/threads/${encodeURIComponent(id)}`, {
+  return apiFetch(`/threads/${encodeURIComponent(id)}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
-    credentials: "include",
   });
-  if (!res.ok) throw new ApiError(res.status, (await res.json().catch(() => ({ detail: res.statusText }))).detail ?? res.statusText);
-  return res.json();
 }
 
 export async function deleteThread(id: string): Promise<void> {
-  const res = await fetch(`/threads/${encodeURIComponent(id)}`, {
+  return apiFetch<void>(`/threads/${encodeURIComponent(id)}`, {
     method: "DELETE",
-    credentials: "include",
   });
-  if (!res.ok) throw new ApiError(res.status, (await res.json().catch(() => ({ detail: res.statusText }))).detail ?? res.statusText);
 }
