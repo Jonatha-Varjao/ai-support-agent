@@ -26,8 +26,6 @@ async def get_session():
         except Exception:
             await session.rollback()
             raise
-        finally:
-            await session.close()
 
 
 async def run_migrations() -> None:
