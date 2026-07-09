@@ -18,6 +18,24 @@ services:
     networks:
       - app_network
 
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v3.14.0
+    container_name: mlflow_server
+    environment:
+      MLFLOW_SERVER_ALLOWED_HOSTS: "*"
+    command: >
+      mlflow server
+      --host 0.0.0.0
+      --port 5000
+      --backend-store-uri sqlite:///mlflow/mlflow.db
+      --default-artifact-root /mlflow/artifacts
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow_data:/mlflow
+    networks:
+      - app_network
+
   redis:
     image: redis/redis-stack-server:latest
     ports:
@@ -27,6 +45,18 @@ services:
       interval: 3s
       timeout: 3s
       retries: 10
+    networks:
+      - app_network
+
+  redisinsight:
+    image: redis/redisinsight:latest
+    container_name: redisinsight_container
+    restart: unless-stopped
+    ports:
+      - "5540:5540"
+    depends_on:
+      redis:
+        condition: service_healthy
     networks:
       - app_network
 
@@ -88,6 +118,7 @@ services:
 
 volumes:
   pgdata:
+  mlflow_data:
 
 networks:
   app_network:
