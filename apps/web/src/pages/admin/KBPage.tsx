@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { useKBList, useKBCreate, useKBUpdate, useKBDelete } from "../../hooks/useAdmin";
 import type { KBCreateRequest, KBUpdateRequest, KBListItem } from "../../api/admin";
-import { KB_CATEGORIES, KB_CATEGORY_LABELS } from "../../api/admin";
-import { ADMIN_PAGE_SIZE } from "../../api/admin";
+import { KB_CATEGORIES, KB_CATEGORY_LABELS, ADMIN_PAGE_SIZE } from "../../api/admin";
 import KBFormDrawer from "../../components/KBFormDrawer";
+import Skeleton from "../../components/Skeleton";
+import Pagination from "../../components/Pagination";
+import EmptyState from "../../components/EmptyState";
 
 export default function KBPage() {
   const [page, setPage] = useState(1);
@@ -57,15 +59,9 @@ export default function KBPage() {
       </div>
 
       {isLoading ? (
-        <div className="space-y-2">
-          {[0, 1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-10 animate-pulse rounded-lg bg-gray-200 dark:bg-gray-700" />
-          ))}
-        </div>
+        <Skeleton count={5} />
       ) : entries.length === 0 ? (
-        <div className="py-12 text-center text-sm text-gray-500 dark:text-gray-400">
-          Nenhuma entrada. Adicione a primeira.
-        </div>
+        <EmptyState message="Nenhuma entrada. Adicione a primeira." />
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
@@ -102,17 +98,7 @@ export default function KBPage() {
             </tbody>
           </table>
 
-          {(page > 1 || entries.length >= ADMIN_PAGE_SIZE) && (
-            <div className="mt-4 flex justify-center gap-2">
-              <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="rounded-lg border border-gray-300 px-3 py-1 text-sm disabled:opacity-40 dark:border-gray-600 dark:text-gray-300">
-                Anterior
-              </button>
-              <span className="px-2 py-1 text-sm text-gray-500">{page}</span>
-              <button disabled={entries.length < ADMIN_PAGE_SIZE} onClick={() => setPage((p) => p + 1)} className="rounded-lg border border-gray-300 px-3 py-1 text-sm disabled:opacity-40 dark:border-gray-600 dark:text-gray-300">
-                Próximo
-              </button>
-            </div>
-          )}
+          <Pagination page={page} itemCount={entries.length} pageSize={ADMIN_PAGE_SIZE} total={data?.total} onPageChange={setPage} />
         </div>
       )}
 
