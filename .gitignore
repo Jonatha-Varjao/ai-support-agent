@@ -55,3 +55,6 @@ mlartifacts/
 
 # Project-specific
 infra/init-db.sh
+
+# Git worktrees
+.worktrees/
