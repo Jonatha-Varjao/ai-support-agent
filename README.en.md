@@ -2,6 +2,11 @@
 
 A web application with an LLM-powered support agent for Mission, with an admin dashboard for managing the knowledge base.
 
+> **This is the `main-databricks` branch.** LLM inference is served by a
+> Databricks Model Serving endpoint (ResponsesAgent) with OAuth M2M auth,
+> while RAG/cache/DB stay self-hosted — side-by-side with the handcrafted
+> approach on `main`. See [docs/databricks-approach.md](docs/databricks-approach.md).
+
 ## Stack
 
 | Layer | Technology |
@@ -10,9 +15,10 @@ A web application with an LLM-powered support agent for Mission, with an admin d
 | Database | PostgreSQL 17 + pgvector (RAG) |
 | Frontend | React 19, Vite, TypeScript, TanStack Query, Zustand, Tailwind v4 |
 | Auth | httpOnly cookies + JWT (HS256) |
-| LLM | Gemini 2.0 Flash (provider-swappable; Google `google-genai` SDK) |
+| LLM | Gemini via Databricks ResponsesAgent serving endpoint (`LLM_PROVIDER=databricks`), or direct Gemini API (`LLM_PROVIDER=gemini`) |
 | MCP | fastmcp server + Playwright (headless Chromium) for `web_fetch` |
-| Observability | MLflow (tracing server, shared Postgres backend) |
+| Observability | Self-hosted MLflow **and** Databricks managed MLflow (side-by-side) |
+| Analytics | Unity Catalog Delta sync (`services/analytics/sync_to_uc.py`) |
 | Container | Docker Compose (services: db, api, mcp, web) |
 | Tooling | uv (Python), bun (JS), ruff, eslint, prettier |
 
