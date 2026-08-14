@@ -79,7 +79,11 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://aiagent:aiagent@db:5432/aiagent
       REDIS_URL: redis://redis:6379/0
-      LLM_PROVIDER: gemini
+      LLM_PROVIDER: ${LLM_PROVIDER:-gemini}
+      DATABRICKS_HOST: ${DATABRICKS_HOST:-}
+      DATABRICKS_CLIENT_ID: ${DATABRICKS_CLIENT_ID:-}
+      DATABRICKS_CLIENT_SECRET: ${DATABRICKS_CLIENT_SECRET:-}
+      DATABRICKS_ENDPOINT_NAME: ${DATABRICKS_ENDPOINT_NAME:-}
       MCP_URL: http://mcp:8000/mcp
       ENV: dev
       ADMIN_EMAIL: admin@admin.com

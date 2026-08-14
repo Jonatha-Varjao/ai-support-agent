@@ -166,6 +166,7 @@ source = { virtual = "apps/api" }
 dependencies = [
     { name = "alembic" },
     { name = "asyncpg" },
+    { name = "databricks-sdk" },
     { name = "fastapi" },
     { name = "fastmcp" },
     { name = "langchain" },
@@ -199,6 +200,7 @@ test = [
 requires-dist = [
     { name = "alembic", specifier = ">=1.18" },
     { name = "asyncpg", specifier = ">=0.31" },
+    { name = "databricks-sdk", specifier = ">=0.120.0" },
     { name = "fastapi", specifier = ">=0.138" },
     { name = "fastmcp", specifier = ">=3.4" },
     { name = "httpx", marker = "extra == 'test'", specifier = ">=0.28" },

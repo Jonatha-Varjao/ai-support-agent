@@ -36,6 +36,13 @@ class Settings(BaseSettings):
 
     gemini_api_key: str = ""
 
+    # LLM provider routing: "gemini" (direct API) or "databricks" (serving endpoint)
+    llm_provider: str = "gemini"
+    databricks_host: str = ""
+    databricks_client_id: str = ""
+    databricks_client_secret: str = ""
+    databricks_endpoint_name: str = ""
+
     embedding_dim: int = 384
 
     mcp_url: str = "http://mcp:8000/mcp"
