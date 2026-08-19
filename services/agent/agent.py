@@ -9,7 +9,7 @@ The agent contract uses `custom_inputs`:
   - system_prompt: full RAG system prompt built by the backend
   - query:         sanitized user question
 
-Secrets are injected at deploy time via `agents.deploy(secrets=...)`:
+Secrets are injected at deploy time via `agents.deploy(environment_vars=...)`:
   - GEMINI_API_KEY
   - GEMINI_MODEL
 """
@@ -19,9 +19,11 @@ import os
 import uuid
 from typing import Generator
 
+import mlflow
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_google_genai import ChatGoogleGenerativeAI
+from mlflow.entities import SpanType
 from mlflow.models import set_model
 from mlflow.pyfunc import ResponsesAgent
 from mlflow.types.responses import (
@@ -43,6 +45,7 @@ class GeminiInferenceAgent(ResponsesAgent):
         )
         self.chain = self.llm | StrOutputParser()
 
+    @mlflow.trace(span_type=SpanType.AGENT)
     def predict(self, request: ResponsesAgentRequest) -> ResponsesAgentResponse:
         output_item = None
         for event in self.predict_stream(request):
@@ -50,6 +53,7 @@ class GeminiInferenceAgent(ResponsesAgent):
                 output_item = event.item
         return ResponsesAgentResponse(output=[output_item])
 
+    @mlflow.trace(span_type=SpanType.AGENT)
     def predict_stream(
         self, request: ResponsesAgentRequest
     ) -> Generator[ResponsesAgentStreamEvent, None, None]:
