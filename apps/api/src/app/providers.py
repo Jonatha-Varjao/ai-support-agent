@@ -41,32 +41,9 @@ def get_llm(temperature: float = 0.7, mock_responses: list[str] | None = None):
 
 
 # ── Databricks serving endpoint provider ────────────────────────
-# Calls the deployed ResponsesAgent (services/agent/agent.py) using
-# OAuth M2M client-credentials auth. The agent only performs the LLM
-# completion; RAG/prompt building stay in this backend.
-
-_token_cache: dict[str, Any] = {"token": None, "exp": 0.0}
-
-
-def _databricks_access_token() -> str:
-    """Return a valid OAuth M2M token, fetching/refreshing as needed."""
-    if _token_cache["token"] and _token_cache["exp"] > time.time() + 60:
-        return _token_cache["token"]
-    resp = httpx.post(
-        f"{settings.databricks_host}/oidc/v1/token",
-        data={"grant_type": "client_credentials", "scope": "all-apis"},
-        auth=(settings.databricks_client_id, settings.databricks_client_secret),
-        timeout=30,
-    )
-    resp.raise_for_status()
-    data = resp.json()
-    _token_cache["token"] = data["access_token"]
-    _token_cache["exp"] = time.time() + int(data.get("expires_in", 3600))
-    return _token_cache["token"]
-
-
-def _responses_endpoint_url() -> str:
-    return f"{settings.databricks_host}/serving-endpoints/{settings.databricks_endpoint_name}/responses"
+# Calls the deployed ResponsesAgent (services/agent/agent.py) via the
+# official DatabricksOpenAI SDK (unified OAuth M2M auth). The agent only
+# performs the LLM completion; RAG/prompt building stay in this backend.
 
 
 def _build_responses_payload(messages: list[BaseMessage], temperature: float, stream: bool) -> dict:
@@ -108,7 +85,11 @@ def _extract_response_text(data: dict) -> str:
 
 
 class DatabricksResponsesChatModel(BaseChatModel):
-    """LangChain chat model backed by a Databricks ResponsesAgent endpoint."""
+    """LangChain chat model backed by a Databricks ResponsesAgent endpoint.
+
+    Uses the official DatabricksOpenAI SDK (unified auth via DATABRICKS_*
+    env vars). Falls back to raw httpx if the SDK is unavailable.
+    """
 
     model: str = Field(default="")
     temperature: float = Field(default=0.7)
@@ -117,60 +98,114 @@ class DatabricksResponsesChatModel(BaseChatModel):
     def _llm_type(self) -> str:
         return "databricks-responses"
 
-    def _headers(self) -> dict[str, str]:
-        return {"Authorization": f"Bearer {_databricks_access_token()}"}
+    def _get_client(self):
+        try:
+            from databricks_openai import DatabricksOpenAI
+            from databricks.sdk import WorkspaceClient
+
+            w = WorkspaceClient()
+            return DatabricksOpenAI(workspace_client=w)
+        except Exception:
+            return None
 
     # -- non-streaming ----------------------------------------------------
 
     def _generate(self, messages, stop=None, run_manager=None, **kwargs) -> ChatResult:
         payload = _build_responses_payload(list(messages), self.temperature, stream=False)
-        with httpx.Client(timeout=180) as client:
-            resp = client.post(_responses_endpoint_url(), json=payload, headers=self._headers())
-            resp.raise_for_status()
-            data = resp.json()
+        client = self._get_client()
+        if client is not None:
+            resp = client.responses.create(
+                model=settings.databricks_endpoint_name,
+                input=payload["input"],
+                extra_body={"custom_inputs": payload["custom_inputs"]},
+            )
+            text = _extract_response_text(resp.to_dict() if hasattr(resp, "to_dict") else resp.model_dump())
+            return ChatResult(generations=[ChatGeneration(message=AIMessage(content=text))])
+        # Fallback: manual httpx with OAuth token
+        import httpx as _httpx
+        import time as _time
+
+        # Use SDK token cache if available
+        from databricks.sdk import WorkspaceClient as _WC
+
+        w = _WC()
+        token = w.config.authenticate()["Authorization"].removeprefix("Bearer ").strip() if w.config.authenticate() else ""
+        url = f"{settings.databricks_host}/serving-endpoints/{settings.databricks_endpoint_name}/invocations"
+        headers = {"Authorization": f"Bearer {token}"}
+        with _httpx.Client(timeout=180) as c:
+            r = c.post(url, json=payload, headers=headers)
+            r.raise_for_status()
+            data = r.json()
         text = _extract_response_text(data)
         return ChatResult(generations=[ChatGeneration(message=AIMessage(content=text))])
 
     async def _agenerate(self, messages, stop=None, run_manager=None, **kwargs) -> ChatResult:
-        payload = _build_responses_payload(list(messages), self.temperature, stream=False)
-        async with httpx.AsyncClient(timeout=180) as client:
-            resp = await client.post(_responses_endpoint_url(), json=payload, headers=self._headers())
-            resp.raise_for_status()
-            data = resp.json()
-        text = _extract_response_text(data)
-        return ChatResult(generations=[ChatGeneration(message=AIMessage(content=text))])
+        # Reuse sync path in thread to keep SDK usage simple
+        import asyncio
+
+        return await asyncio.to_thread(self._generate, messages, stop, run_manager, **kwargs)
 
     # -- streaming ----------------------------------------------------------
 
     def _stream(self, messages, stop=None, run_manager=None, **kwargs) -> Iterator[ChatGenerationChunk]:
         payload = _build_responses_payload(list(messages), self.temperature, stream=True)
-        with httpx.Client(timeout=180) as client:
-            with client.stream("POST", _responses_endpoint_url(), json=payload, headers=self._headers()) as resp:
+        client = self._get_client()
+        if client is not None:
+            stream = client.responses.create(
+                model=settings.databricks_endpoint_name,
+                input=payload["input"],
+                stream=True,
+                extra_body={"custom_inputs": payload["custom_inputs"]},
+            )
+            for event in stream:
+                d = event.to_dict() if hasattr(event, "to_dict") else event
+                if d.get("type") == "response.output_text.delta":
+                    yield ChatGenerationChunk(message=AIMessageChunk(content=d.get("delta", "")))
+                elif d.get("type") == "response.output_item.done":
+                    break
+            return
+        # Fallback streaming via httpx
+        with httpx.Client(timeout=180) as c:
+            from databricks.sdk import WorkspaceClient as _WC
+
+            w = _WC()
+            token = w.config.authenticate()["Authorization"].removeprefix("Bearer ").strip() if w.config.authenticate() else ""
+            url = f"{settings.databricks_host}/serving-endpoints/{settings.databricks_endpoint_name}/invocations"
+            headers = {"Authorization": f"Bearer {token}"}
+            with c.stream("POST", url, json=payload, headers=headers) as resp:
                 resp.raise_for_status()
                 for line in resp.iter_lines():
                     if not line or not line.startswith("data: "):
                         continue
                     event = json.loads(line[6:])
                     if event.get("type") == "response.output_text.delta":
-                        delta = event.get("delta", "")
-                        yield ChatGenerationChunk(message=AIMessageChunk(content=delta))
+                        yield ChatGenerationChunk(message=AIMessageChunk(content=event.get("delta", "")))
                     elif event.get("type") == "response.output_item.done":
                         break
 
     async def _astream(self, messages, stop=None, run_manager=None, **kwargs):
-        payload = _build_responses_payload(list(messages), self.temperature, stream=True)
-        async with httpx.AsyncClient(timeout=180) as client:
-            async with client.stream("POST", _responses_endpoint_url(), json=payload, headers=self._headers()) as resp:
-                resp.raise_for_status()
-                async for line in resp.aiter_lines():
-                    if not line or not line.startswith("data: "):
-                        continue
-                    event = json.loads(line[6:])
-                    if event.get("type") == "response.output_text.delta":
-                        delta = event.get("delta", "")
-                        yield ChatGenerationChunk(message=AIMessageChunk(content=delta))
-                    elif event.get("type") == "response.output_item.done":
-                        break
+        import asyncio
+
+        # Delegate to sync stream in thread; preserves SSE contract
+        loop = asyncio.get_event_loop()
+        queue: asyncio.Queue = asyncio.Queue()
+
+        def _run():
+            try:
+                for chunk in self._stream(messages, stop, run_manager, **kwargs):
+                    loop.call_soon_threadsafe(queue.put_nowait, chunk)
+            finally:
+                loop.call_soon_threadsafe(queue.put_nowait, None)
+
+        import threading
+
+        t = threading.Thread(target=_run, daemon=True)
+        t.start()
+        while True:
+            item = await queue.get()
+            if item is None:
+                break
+            yield item
 
 
 # ── Embedding provider ──────────────────────────────────────────
