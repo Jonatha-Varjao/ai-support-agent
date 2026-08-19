@@ -22,6 +22,7 @@ dependencies = [
     "mlflow>=3.14.0",
     "langchain>=1.3.12",
     "databricks-sdk>=0.120.0",
+    "databricks-openai>=0.17.0",
 ]
 
 [project.optional-dependencies]
