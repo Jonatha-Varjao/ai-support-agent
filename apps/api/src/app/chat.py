@@ -714,36 +714,44 @@ async def chat(
         full_response = ""
 
         llm = get_llm()
-        llm_with_tools = llm.bind_tools([WEB_FETCH_TOOL, WEB_SEARCH_TOOL])
         messages = [
             SystemMessage(content=system_prompt_text),
             *history_rows,
             HumanMessage(content=sanitized),
         ]
 
-        # Fallback approach: `ainvoke` first to detect tool calls, then `astream`
-        # for true incremental streaming on the non-tool path. This avoids
-        # reconstructing tool_call_chunks mid-stream (which can be unreliable
-        # depending on the LLM provider's chunk format). The cost of the extra
-        # LLM call on the non-tool path is bounded and acceptable.
-        response = await llm_with_tools.ainvoke(messages)
-        if response.tool_calls:
-            messages.append(response)
-            for tc in response.tool_calls:
-                tool_name = tc.get("name", "")
-                yield _sse_token(f"[Executando: {tool_name}...]")
-                content = await _execute_tool_call(tc)
-                messages.append(ToolMessage(content=content, tool_call_id=tc["id"]))
-            async for chunk in llm_with_tools.astream(messages):
+        # Databricks ResponsesAgent is LLM-only (no tool binding in Phase 1).
+        # Stream directly to avoid bind_tools NotImplementedError and double LLM call.
+        if settings.llm_provider == "databricks":
+            async for chunk in llm.astream(messages):
                 if chunk.content:
                     full_response += _content_to_str(chunk.content)
                     yield _sse_token(_content_to_str(chunk.content))
         else:
-            # True streaming for the common case — re-stream with astream
-            async for chunk in llm_with_tools.astream(messages):
-                if chunk.content:
-                    full_response += _content_to_str(chunk.content)
-                    yield _sse_token(_content_to_str(chunk.content))
+            llm_with_tools = llm.bind_tools([WEB_FETCH_TOOL, WEB_SEARCH_TOOL])
+            # Fallback approach: `ainvoke` first to detect tool calls, then `astream`
+            # for true incremental streaming on the non-tool path. This avoids
+            # reconstructing tool_call_chunks mid-stream (which can be unreliable
+            # depending on the LLM provider's chunk format). The cost of the extra
+            # LLM call on the non-tool path is bounded and acceptable.
+            response = await llm_with_tools.ainvoke(messages)
+            if response.tool_calls:
+                messages.append(response)
+                for tc in response.tool_calls:
+                    tool_name = tc.get("name", "")
+                    yield _sse_token(f"[Executando: {tool_name}...]")
+                    content = await _execute_tool_call(tc)
+                    messages.append(ToolMessage(content=content, tool_call_id=tc["id"]))
+                async for chunk in llm_with_tools.astream(messages):
+                    if chunk.content:
+                        full_response += _content_to_str(chunk.content)
+                        yield _sse_token(_content_to_str(chunk.content))
+            else:
+                # True streaming for the common case — re-stream with astream
+                async for chunk in llm_with_tools.astream(messages):
+                    if chunk.content:
+                        full_response += _content_to_str(chunk.content)
+                        yield _sse_token(_content_to_str(chunk.content))
 
         try:
             if NO_INFO_SENTINEL in full_response:
