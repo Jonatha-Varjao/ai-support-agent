@@ -51,11 +51,10 @@ def main() -> None:
     }
 
     with mlflow.start_run():
-        logged_info = mlflow.langchain.log_model(
-            lc_model=args.agent_path,
-            artifact_path=args.artifact_path,
+        logged_info = mlflow.pyfunc.log_model(
+            python_model=args.agent_path,
+            name=args.artifact_path,
             input_example=input_example,
-            example_no_conversion=True,
         )
     print(f"MLflow Run: {logged_info.run_id}")
     print(f"Model URI: {logged_info.model_uri}")
@@ -68,7 +67,7 @@ def main() -> None:
         uc_info.name,
         uc_info.version,
         endpoint_name=args.endpoint,
-        secrets={name: os.environ[name] for name in DEPLOY_SECRETS if name in os.environ},
+        environment_vars={name: os.environ[name] for name in DEPLOY_SECRETS if name in os.environ},
     )
     print(f"Deployed. Query endpoint: {deployment.query_endpoint}")
 
